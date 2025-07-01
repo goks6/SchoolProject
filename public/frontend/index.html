@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="mr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>शाळा हजेरी व्यवस्थापन प्रणाली</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --accent-color: #f093fb;
+            --light-pink: #FFB6C1;
+            --light-blue: #E6F2FF;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .app-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .auth-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            max-width: 1000px;
+            width: 100%;
+        }
+
+        .auth-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .school-icon {
+            width: 80px;
+            height: 80px;
+            background: var(--light-pink);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            box-shadow: 0 10px 20px rgba(255, 182, 193, 0.3);
+        }
+
+        .btn-3d {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-3d:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+            color: white;
+        }
+
+        .form-control {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+
+        .tab-content {
+            padding: 30px;
+        }
+
+        .nav-tabs .nav-link {
+            border: none;
+            color: #666;
+            padding: 15px 30px;
+            font-weight: 500;
+        }
+
+        .nav-tabs .nav-link.active {
+            background: var(--light-blue);
+            color: var(--primary-color);
+            border-radius: 10px 10px 0 0;
+        }
+
+        .feature-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 15px 0;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        .alert {
+            border-radius: 10px;
+            border: none;
+        }
+
+        .spinner-border {
+            width: 2rem;
+            height: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .auth-card {
+                margin: 20px;
+            }
+            
+            .nav-tabs .nav-link {
+                padding: 10px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="school-icon">
+                    <svg width="50" height="50" viewBox="0 0 100 100" fill="none">
+                        <rect x="20" y="40" width="60" height="40" fill="#8B4513"/>
+                        <polygon points="50,20 80,40 20,40" fill="#D2691E"/>
+                        <rect x="35" y="55" width="10" height="15" fill="#4169E1"/>
+                        <rect x="55" y="55" width="10" height="15" fill="#4169E1"/>
+                        <rect x="45" y="70" width="10" height="10" fill="#8B4513"/>
+                    </svg>
+                </div>
+                <h2>शाळा हजेरी व्यवस्थापन प्रणाली</h2>
+                <p class="mb-0">School Attendance Management System</p>
+            </div>
+
+            <div class="auth-body">
+                <ul class="nav nav-tabs" id="authTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="home-tab" data-bs-toggle="tab" data-bs-target="#home" type="button">
+                            <i class="bi bi-house-door"></i> मुख्यपृष्ठ
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button">
+                            <i class="bi bi-building"></i> शाळा नोंदणी
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="login-tab" data-bs-toggle="tab" data-bs-target="#login" type="button">
+                            <i class="bi bi-box-arrow-in-right"></i> लॉगिन
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="authTabContent">
+                    <!-- Home Tab -->
+                    <div class="tab-pane fade show active" id="home" role="tabpanel">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="feature-card">
+                                    <div class="feature-icon">
+                                        <i class="bi bi-calendar-check"></i>
+                                    </div>
+                                    <h4>सोपी हजेरी व्यवस्था</h4>
+                                    <p>दैनंदिन हजेरी घेणे आणि व्यवस्थापित करणे सोपे झाले आहे. एका क्लिकमध्ये सर्व विद्यार्थ्यांची हजेरी नोंदवा.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card">
+                                    <div class="feature-icon">
+                                        <i class="bi bi-telegram"></i>
+                                    </div>
+                                    <h4>Telegram द्वारे सूचना</h4>
+                                    <p>पालकांना त्वरित Telegram द्वारे अनुपस्थिती, अभ्यास आणि महत्वाच्या सूचना पाठवा.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card">
+                                    <div class="feature-icon">
+                                        <i class="bi bi-graph-up"></i>
+                                    </div>
+                                    <h4>तपशीलवार अहवाल</h4>
+                                    <p>मासिक आणि वार्षिक हजेरी अहवाल, परीक्षा निकाल आणि शुल्क व्यवस्थापन.</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-card">
+                                    <div class="feature-icon">
+                                        <i class="bi bi-shield-check"></i>
+                                    </div>
+                                    <h4>सुरक्षित आणि विश्वसनीय</h4>
+                                    <p>तुमचा डेटा सुरक्षित Cloud storage मध्ये संग्रहित केला जातो. कधीही, कुठूनही access करा.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-center mt-4">
+                            <button class="btn btn-3d btn-lg me-3" onclick="showTab('register')">
+                                <i class="bi bi-plus-circle"></i> नवीन शाळा नोंदणी
+                            </button>
+                            <button class="btn btn-3d btn-lg" onclick="showTab('login')">
+                                <i class="bi bi-box-arrow-in-right"></i> लॉगिन करा
+                            </button>
+                        </div>
+
+                        <!-- Demo Credentials -->
+                        <div class="alert alert-info mt-4">
+                            <h5><i class="bi bi-info-circle"></i> डेमो क्रेडेंशियल्स</h5>
+                            <p class="mb-2"><strong>मुख्याध्यापक:</strong> मोबाईल: 9876543210, पासवर्ड: 9876543210</p>
+                            <p class="mb-0"><strong>शिक्षक:</strong> मोबाईल: 9876543211, पासवर्ड: 9876543211</p>
+                        </div>
+                    </div>
+
+                    <!-- Register Tab -->
+                    <div class="tab-pane fade" id="register" role="tabpanel">
+                        <h3 class="mb-4">शाळा नोंदणी</h3>
+                        <form id="schoolRegistrationForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">शाळेचे नाव *</label>
+                                    <input type="text" class="form-control" id="schoolName" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">UDISE क्रमांक (12 अंकी) *</label>
+                                    <input type="text" class="form-control" id="udiseNumber" pattern="[0-9]{12}" maxlength="12" required>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">शाळेचा पत्ता *</label>
+                                <textarea class="form-control" id="address" rows="3" required></textarea>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">पिन कोड (6 अंकी) *</label>
+                                    <input type="text" class="form-control" id="pinCode" pattern="[0-9]{6}" maxlength="6" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">शाळेचा फोन/मोबाईल *</label>
+                                    <input type="tel" class="form-control" id="phone" required>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">मुख्याध्यापकांचे नाव *</label>
+                                    <input type="text" class="form-control" id="principalName" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">मुख्याध्यापकांचा मोबाईल (10 अंकी) *</label>
+                                    <input type="tel" class="form-control" id="principalMobile" pattern="[0-9]{10}" maxlength="10" required>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">मुख्याध्यापकांचा ईमेल (वैकल्पिक)</label>
+                                <input type="email" class="form-control" id="principalEmail">
+                            </div>
+
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> मुख्याध्यापकांचा मोबाईल नंबर हा त्यांचा Login ID असेल. 
+                                प्रारंभिक पासवर्ड देखील मोबाईल नंबरच असेल.
+                            </div>
+
+                            <button type="submit" class="btn btn-3d btn-lg w-100">
+                                <i class="bi bi-check-circle"></i> नोंदणी करा
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Login Tab -->
+                    <div class="tab-pane fade" id="login" role="tabpanel">
+                        <h3 class="mb-4">लॉगिन</h3>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="feature-card text-center" style="cursor: pointer;" onclick="showLoginForm('principal')">
+                                    <div class="feature-icon mx-auto">
+                                        <i class="bi bi-person-badge"></i>
+                                    </div>
+                                    <h5>मुख्याध्यापक लॉगिन</h5>
+                                    <p class="text-muted mb-0">शाळा व्यवस्थापनासाठी</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="feature-card text-center" style="cursor: pointer;" onclick="showLoginForm('teacher')">
+                                    <div class="feature-icon mx-auto">
+                                        <i class="bi bi-person"></i>
+                                    </div>
+                                    <h5>शिक्षक लॉगिन</h5>
+                                    <p class="text-muted mb-0">वर्ग व्यवस्थापनासाठी</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="loginFormContainer" style="display: none;">
+                            <hr class="my-4">
+                            <h4 id="loginTitle" class="mb-3"></h4>
+                            <form id="loginForm">
+                                <div class="mb-3">
+                                    <label class="form-label">मोबाईल क्रमांक</label>
+                                    <input type="tel" class="form-control" id="loginMobile" pattern="[0-9]{10}" maxlength="10" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">पासवर्ड</label>
+                                    <input type="password" class="form-control" id="loginPassword" required>
+                                </div>
+                                <button type="submit" class="btn btn-3d w-100">
+                                    <i class="bi bi-box-arrow-in-right"></i> लॉगिन करा
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background: rgba(0,0,0,0.5); z-index: 9999; display: none !important;">
+        <div class="spinner-border text-light" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="toast" class="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto">सूचना</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // API Base URL
+        const API_BASE_URL = 'http://localhost:3000/api';
+        let currentUserType = null;
+
+        // Show specific tab
+        function showTab(tabName) {
+            const tab = document.querySelector(`#${tabName}-tab`);
+            if (tab) {
+                tab.click();
+            }
+        }
+
+        // Show login form
+        function showLoginForm(userType) {
+            currentUserType = userType;
+            document.getElementById('loginFormContainer').style.display = 'block';
+            document.getElementById('loginTitle').textContent = 
+                userType === 'principal' ? 'मुख्याध्यापक लॉगिन' : 'शिक्षक लॉगिन';
+            document.getElementById('loginForm').reset();
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toastEl = document.getElementById('toast');
+            const toast = new bootstrap.Toast(toastEl);
+            const toastBody = toastEl.querySelector('.toast-body');
+            
+            toastBody.textContent = message;
+            toastEl.classList.remove('bg-success', 'bg-danger', 'bg-warning');
+            
+            if (type === 'success') {
+                toastEl.classList.add('bg-success', 'text-white');
+            } else if (type === 'error') {
+                toastEl.classList.add('bg-danger', 'text-white');
+            } else {
+                toastEl.classList.add('bg-warning');
+            }
+            
+            toast.show();
+        }
+
+        // Show/Hide loading
+        function showLoading() {
+            document.getElementById('loadingSpinner').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+
+        // School Registration
+        document.getElementById('schoolRegistrationForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                schoolName: document.getElementById('schoolName').value,
+                udiseNumber: document.getElementById('udiseNumber').value,
+                address: document.getElementById('address').value,
+                pinCode: document.getElementById('pinCode').value,
+                phone: document.getElementById('phone').value,
+                principalName: document.getElementById('principalName').value,
+                principalMobile: document.getElementById('principalMobile').value,
+                principalEmail: document.getElementById('principalEmail').value
+            };
+
+            showLoading();
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/register-school`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('शाळा नोंदणी यशस्वी! आता लॉगिन करू शकता.', 'success');
+                    document.getElementById('schoolRegistrationForm').reset();
+                    showTab('login');
+                } else {
+                    showToast(data.message || 'नोंदणी अयशस्वी', 'error');
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                showToast('नेटवर्क त्रुटी. कृपया पुन्हा प्रयत्न करा.', 'error');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // Login
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!currentUserType) {
+                showToast('कृपया पहिले मुख्याध्यापक किंवा शिक्षक निवडा', 'error');
+                return;
+            }
+
+            const loginData = {
+                mobile: document.getElementById('loginMobile').value,
+                password: document.getElementById('loginPassword').value,
+                role: currentUserType
+            };
+
+            console.log('Sending login data:', loginData); // Debug log
+
+            showLoading();
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(loginData)
+                });
+
+                const data = await response.json();
+                console.log('Login response:', data); // Debug log
+
+                if (data.success) {
+                    // Save token and user data
+                    localStorage.setItem('token', data.data.token);
+                    localStorage.setItem('user', JSON.stringify(data.data.user));
+                    
+                    showToast('लॉगिन यशस्वी!', 'success');
+                    
+                    // Redirect based on role
+                    setTimeout(() => {
+                        if (data.data.user.role === 'principal') {
+                            window.location.href = 'principal/dashboard.html';
+                        } else {
+                            window.location.href = 'teacher/dashboard.html';
+                        }
+                    }, 1000);
+                } else {
+                    showToast(data.message || 'लॉगिन अयशस्वी', 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showToast('नेटवर्क त्रुटी. कृपया पुन्हा प्रयत्न करा.', 'error');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // Check if already logged in
+        window.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            if (token && user) {
+                const userData = JSON.parse(user);
+                if (userData.role === 'principal') {
+                    window.location.href = 'principal/dashboard.html';
+                } else {
+                    window.location.href = 'teacher/dashboard.html';
+                }
+            }
+        });
+    </script>
+</body>
+</html>

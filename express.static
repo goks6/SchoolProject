@@ -1,0 +1,15 @@
+// Debug static files
+app.get('/debug/static', (req, res) => {
+    const fs = require('fs');
+    const frontendPath = path.join(__dirname, 'public', 'frontend');
+    try {
+        const files = fs.readdirSync(frontendPath);
+        res.json({ 
+            path: frontendPath,
+            files: files,
+            exists: fs.existsSync(frontendPath)
+        });
+    } catch (err) {
+        res.json({ error: err.message });
+    }
+});

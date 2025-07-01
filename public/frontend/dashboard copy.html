@@ -1,0 +1,1623 @@
+<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">रद्द करा</button>
+                        <button type="submit" class="btn btn-primary">विद्यार्थी जोडा</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Holiday Modal -->
+    <div class="modal fade" id="addHolidayModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">नवीन सुट्टी जोडा</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="addHolidayForm" novalidate>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">सुट्टीची तारीख (पासून) *</label>
+                            <input type="date" class="form-control" id="holidayStartDate" required>
+                            <div class="invalid-feedback">सुट्टीची तारीख आवश्यक आहे</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">सुट्टीची तारीख (पर्यंत)</label>
+                            <input type="date" class="form-control" id="holidayEndDate">
+                            <small class="text-muted">एकाच दिवसाची सुट्टी असल्यास रिकामे ठेवा</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">सुट्टीचे कारण (ऐच्छिक)</label>
+                            <input type="text" class="form-control" id="holidayReason" placeholder="उदा. गणेश चतुर्थी">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">रद्द करा</button>
+                        <button type="submit" class="btn btn-primary">सुट्टी जोडा</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Global Variables
+        let currentUser = null;
+        let currentSchool = null;
+        let currentMonth = new Date().getMonth();
+        let currentYear = new Date().getFullYear();
+        let holidays = [];
+        let teachers = [];
+        let students = [];
+        let classes = [];
+
+        // API Base URL
+        const API_BASE = 'http://localhost:3000/api';
+
+        // Initialize Dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check authentication
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '../index.html';
+                return;
+            }
+
+            // Load initial data
+            loadDashboardData();
+            
+            // Set today's date for attendance
+            document.getElementById('attendanceDate').value = new Date().toISOString().split('T')[0];
+            
+            // Set current month/year for reports
+            const currentDate = new Date();
+            document.getElementById('monthSelect').value = currentDate.getMonth() + 1;
+            document.getElementById('yearSelect').value = currentDate.getFullYear();
+        });
+
+        // Authentication Functions
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '../index.html';
+        }
+
+        // API Helper Functions
+        async function apiCall(endpoint, method = 'GET', data = null) {
+            const token = localStorage.getItem('token');
+            const options = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            };
+
+            if (data) {
+                options.body = JSON.stringify(data);
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, options);
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.message || 'API Error');
+                }
+                
+                return result;
+            } catch (error) {
+                console.error('API Error:', error);
+                showAlert('त्रुटी: ' + error.message, 'danger');
+                throw error;
+            }
+        }
+
+        // Load Dashboard Data
+        async function loadDashboardData() {
+            try {
+                // Load school details
+                const schoolData = await apiCall('/school/details');
+                currentSchool = schoolData.school;
+                document.getElementById('schoolName').textContent = currentSchool.name;
+
+                // Load classes first
+                await loadClasses();
+
+                // Load statistics
+                await loadStatistics();
+                
+                // Load teachers
+                await loadTeachers();
+                
+                // Load students
+                await loadStudents();
+                
+                // Load calendar
+                await loadCalendar();
+
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                showAlert('Dashboard लोड करण्यात त्रुटी', 'danger');
+            }
+        }
+
+        // Load Classes
+        async function loadClasses() {
+            try {
+                const response = await apiCall('/classes/list');
+                classes = response.classes || [];
+            } catch (error) {
+                console.error('Error loading classes:', error);
+                // Create default classes if API doesn't exist
+                classes = [];
+                for (let i = 1; i <= 10; i++) {
+                    ['A', 'B', 'C', 'D'].forEach(section => {
+                        classes.push({
+                            id: (i-1)*4 + ['A','B','C','D'].indexOf(section) + 1,
+                            class_name: i.toString(),
+                            section: section
+                        });
+                    });
+                }
+            }
+        }
+
+        // Get Class ID
+        function getClassId(className, section) {
+            const classObj = classes.find(c => c.class_name === className && c.section === section);
+            return classObj ? classObj.id : null;
+        }
+
+        // Load Statistics
+        async function loadStatistics() {
+            try {
+                const [teacherCount, studentCount, todayAttendance] = await Promise.all([
+                    apiCall('/teacher/count'),
+                    apiCall('/student/count'),
+                    apiCall('/attendance/today')
+                ]);
+
+                document.getElementById('totalTeachers').textContent = teacherCount.count || 0;
+                document.getElementById('totalStudents').textContent = studentCount.count || 0;
+                document.getElementById('todayPresent').textContent = todayAttendance.present || 0;
+                document.getElementById('todayAbsent').textContent = todayAttendance.absent || 0;
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+            }
+        }
+
+        // Tab Management
+        function showTab(tabName) {
+            // Load data when tab is shown
+            switch(tabName) {
+                case 'teachers':
+                    loadTeachers();
+                    break;
+                case 'students':
+                    loadStudents();
+                    break;
+                case 'calendar':
+                    loadCalendar();
+                    break;
+                case 'attendance':
+                    break; // No auto-load for attendance
+                case 'overview':
+                    loadStatistics();
+                    break;
+            }
+        }
+
+        // Teacher Management Functions
+        async function loadTeachers() {
+            try {
+                const response = await apiCall('/teacher/list');
+                teachers = response.teachers || [];
+                displayTeachers();
+            } catch (error) {
+                document.getElementById('teachersTableBody').innerHTML = 
+                    '<tr><td colspan="6" class="text-center text-danger">शिक्षक लोड करण्यात त्रुटी</td></tr>';
+            }
+        }
+
+        function displayTeachers() {
+            const tbody = document.getElementById('teachersTableBody');
+            if (teachers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">कोणतेही शिक्षक सापडले नाहीत</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = teachers.map((teacher, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${teacher.name}</td>
+                    <td>${teacher.mobile}</td>
+                    <td>${teacher.class || '-'}</td>
+                    <td>${teacher.section || '-'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editTeacher(${teacher.id})" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning" onclick="resetTeacherPassword(${teacher.id})" title="Reset Password">
+                            <i class="bi bi-key"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteTeacher(${teacher.id})" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openAddTeacherModal() {
+            const form = document.getElementById('addTeacherForm');
+            form.reset();
+            form.classList.remove('was-validated');
+            new bootstrap.Modal(document.getElementById('addTeacherModal')).show();
+        }
+
+        // Teacher Form Submit
+        document.getElementById('addTeacherForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!this.checkValidity()) {
+                e.stopPropagation();
+                this.classList.add('was-validated');
+                return;
+            }
+            
+            const teacherData = {
+                name: document.getElementById('teacherName').value.trim(),
+                mobile: document.getElementById('teacherMobile').value.trim(),
+                class: document.getElementById('teacherClass').value,
+                section: document.getElementById('teacherSection').value
+            };
+
+            // Additional validation
+            if (teacherData.mobile.length !== 10) {
+                showAlert('मोबाईल नंबर 10 अंकी असावा', 'warning');
+                return;
+            }
+
+            try {
+                await apiCall('/teacher/add', 'POST', teacherData);
+                showAlert('शिक्षक यशस्वीरीत्या जोडला गेला!', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('addTeacherModal')).hide();
+                loadTeachers();
+                loadStatistics();
+            } catch (error) {
+                // Error already handled in apiCall
+            }
+        });
+
+        async function resetTeacherPassword(teacherId) {
+            if (confirm('या शिक्षकाचा पासवर्ड रिसेट करायचा का?')) {
+                try {
+                    await apiCall(`/teacher/reset-password/${teacherId}`, 'POST');
+                    showAlert('पासवर्ड यशस्वीरीत्या रिसेट झाला!', 'success');
+                } catch (error) {
+                    // Error already handled in apiCall
+                }
+            }
+        }
+
+        async function deleteTeacher(teacherId) {
+            if (confirm('या शिक्षकाला कायमचे काढून टाकायचे का?')) {
+                try {
+                    await apiCall(`/teacher/delete/${teacherId}`, 'DELETE');
+                    showAlert('शिक्षक यशस्वीरीत्या काढून टाकला!', 'success');
+                    loadTeachers();
+                    loadStatistics();
+                } catch (error) {
+                    // Error already handled in apiCall
+                }
+            }
+        }
+
+        // Student Management Functions
+        async function loadStudents() {
+            try {
+                const response = await apiCall('/student/list');
+                students = response.students || [];
+                displayStudents();
+            } catch (error) {
+                document.getElementById('studentsTableBody').innerHTML = 
+                    '<tr><td colspan="7" class="text-center text-danger">विद्यार्थी लोड करण्यात त्रुटी</td></tr>';
+            }
+        }
+
+        function displayStudents() {
+            const tbody = document.getElementById('studentsTableBody');
+            if (students.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center">कोणतेही विद्यार्थी सापडले नाहीत</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = students.map(student => `
+                <tr>
+                    <td>${student.roll_number}</td>
+                    <td>${student.name}</td>
+                    <td>${student.mother_name}</td>
+                    <td>${student.class}</td>
+                    <td>${student.section}</td>
+                    <td>${student.parent_mobile}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editStudent(${student.id})" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteStudent(${student.id})" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openAddStudentModal() {
+            const form = document.getElementById('addStudentForm');
+            form.reset();
+            form.classList.remove('was-validated');
+            new bootstrap.Modal(document.getElementById('addStudentModal')).show();
+        }
+
+        // Student Form Submit
+        document.getElementById('addStudentForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!this.checkValidity()) {
+                e.stopPropagation();
+                this.classList.add('was-validated');
+                return;
+            }
+
+            // Get form data
+            const formData = {
+                rollNumber: document.getElementById('studentRollNumber').value.trim(),
+                name: document.getElementById('studentName').value.trim(),
+                motherName: document.getElementById('motherName').value.trim(),
+                dateOfBirth: document.getElementById('dateOfBirth').value,
+                address: document.getElementById('studentAddress').value.trim(),
+                parentMobile: document.getElementById('parentMobile').value.trim(),
+                aadharNumber: document.getElementById('aadharNumber').value.trim(),
+                studentId: document.getElementById('studentId').value.trim(),
+                className: document.getElementById('studentClass').value,
+                section: document.getElementById('studentSection').value
+            };
+
+            // Additional validation
+            if (formData.parentMobile.length !== 10) {
+                showAlert('पालकांचा मोबाईल नंबर 10 अंकी असावा', 'warning');
+                return;
+            }
+
+            if (formData.aadharNumber && formData.aadharNumber.length !== 12) {
+                showAlert('आधार नंबर 12 अंकी असावा', 'warning');
+                return;
+            }
+
+            // Check for duplicate roll number
+            const existingStudent = students.find(s => 
+                s.roll_number == formData.rollNumber && 
+                s.class == formData.className && 
+                s.section === formData.section
+            );
+            
+            if (existingStudent) {
+                showAlert('या इयत्ता आणि तुकडीत हा हजेरी क्रमांक आधीच वापरला गेला आहे', 'warning');
+                return;
+            }
+
+            const classId = getClassId(formData.className, formData.section);
+            
+            const studentData = {
+                roll_number: parseInt(formData.rollNumber),
+                name: formData.name,
+                mother_name: formData.motherName,
+                date_of_birth: formData.dateOfBirth,
+                address: formData.address,
+                parent_mobile: formData.parentMobile,
+                aadhar_number: formData.aadharNumber || null,
+                student_id: formData.studentId || null,
+                class_id: classId,
+                class: formData.className,
+                section: formData.section
+            };
+
+            try {
+                await apiCall('/student/add', 'POST', studentData);
+                showAlert('विद्यार्थी यशस्वीरीत्या जोडला गेला!', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('addStudentModal')).hide();
+                loadStudents();
+                loadStatistics();
+            } catch (error) {
+                // Error already handled in apiCall
+            }
+        });
+
+        // Fixed Delete Student Function
+        async function deleteStudent(studentId) {
+            if (confirm('या विद्यार्थ्याला कायमचे काढून टाकायचे का?')) {
+                try {
+                    await apiCall(`/student/delete/${studentId}`, 'DELETE');
+                    showAlert('विद्यार्थी यशस्वीरीत्या काढून टाकला!', 'success');
+                    loadStudents();
+                    loadStatistics();
+                } catch (error) {
+                    // Error already handled in apiCall
+                }
+            }
+        }
+
+        // Student Filtering Functions
+        function filterStudents() {
+            const classFilter = document.getElementById('filterClass').value;
+            const sectionFilter = document.getElementById('filterSection').value;
+            
+            let filteredStudents = students;
+            
+            if (classFilter) {
+                filteredStudents = filteredStudents.filter(s => s.class == classFilter);
+            }
+            
+            if (sectionFilter) {
+                filteredStudents = filteredStudents.filter(s => s.section === sectionFilter);
+            }
+            
+            displayFilteredStudents(filteredStudents);
+        }
+
+        function searchStudents() {
+            const searchTerm = document.getElementById('searchStudent').value.toLowerCase();
+            const filteredStudents = students.filter(student => 
+                student.name.toLowerCase().includes(searchTerm) ||
+                student.mother_name.toLowerCase().includes(searchTerm) ||
+                student.roll_number.toString().includes(searchTerm) ||
+                student.parent_mobile.includes(searchTerm)
+            );
+            
+            displayFilteredStudents(filteredStudents);
+        }
+
+        function displayFilteredStudents(filteredStudents) {
+            const tbody = document.getElementById('studentsTableBody');
+            if (filteredStudents.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center">कोणतेही विद्यार्थी सापडले नाहीत</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filteredStudents.map(student => `
+                <tr>
+                    <td>${student.roll_number}</td>
+                    <td>${student.name}</td>
+                    <td>${student.mother_name}</td>
+                    <td>${student.class}</td>
+                    <td>${student.section}</td>
+                    <td>${student.parent_mobile}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editStudent(${student.id})" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteStudent(${student.id})" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Calendar Functions
+        async function loadCalendar() {
+            try {
+                // Load holidays
+                const response = await apiCall('/calendar/holidays');
+                holidays = response.holidays || [];
+                displayCalendar();
+                displayUpcomingHolidays();
+            } catch (error) {
+                document.getElementById('calendarView').innerHTML = 
+                    '<div class="text-center text-danger">कॅलेंडर लोड करण्यात त्रुटी: ' + error.message + '</div>';
+            }
+        }
+
+        function displayCalendar() {
+            const monthNames = [
+                'जानेवारी', 'फेब्रुवारी', 'मार्च', 'एप्रिल', 'मे', 'जून',
+                'जुलै', 'ऑगस्ट', 'सप्टेंबर', 'ऑक्टोबर', 'नोव्हेंबर', 'डिसेंबर'
+            ];
+            
+            const dayNames = ['रवि', 'सोम', 'मंगळ', 'बुध', 'गुरु', 'शुक्र', 'शनि'];
+            
+            document.getElementById('currentMonthYear').textContent = `${monthNames[currentMonth]} ${currentYear}`;
+            
+            const firstDay = new Date(currentYear, currentMonth, 1);
+            const lastDay = new Date(currentYear, currentMonth + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            const startingDayOfWeek = firstDay.getDay();
+            
+            let calendarHTML = `
+                <div class="calendar-grid">
+                    <div class="calendar-header">
+                        ${dayNames.map(day => `<div class="calendar-day-header">${day}</div>`).join('')}
+                    </div>
+                    <div class="calendar-body">
+            `;
+            
+            // Empty cells for days before the first day of the month
+            for (let i = 0; i < startingDayOfWeek; i++) {
+                calendarHTML += '<div class="calendar-day empty"></div>';
+            }
+            
+            // Days of the month
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(currentYear, currentMonth, day);
+                const dateString = date.toISOString().split('T')[0];
+                const today = new Date().toISOString().split('T')[0];
+                const isToday = dateString === today;
+                const isSunday = date.getDay() === 0;
+                const isHoliday = holidays.some(h => h.date === dateString);
+                
+                let classes = 'calendar-day';
+                if (isToday) classes += ' today';
+                if (isSunday) classes += ' sunday';
+                if (isHoliday) classes += ' holiday';
+                
+                calendarHTML += `<div class="${classes}">${day}</div>`;
+            }
+            
+            calendarHTML += '</div></div>';
+            
+            document.getElementById('calendarView').innerHTML = calendarHTML;
+        }
+
+        function displayUpcomingHolidays() {
+            const upcomingDiv = document.getElementById('upcomingHolidays');
+            const today = new Date();
+            const upcoming = holidays.filter(h => new Date(h.date) >= today).slice(0, 5);
+            
+            if (upcoming.length === 0) {
+                upcomingDiv.innerHTML = '<p class="text-muted">आगामी सुट्ट्या नाहीत</p>';
+                return;
+            }
+            
+            upcomingDiv.innerHTML = upcoming.map(holiday => `
+                <div class="card mb-2">
+                    <div class="card-body py-2">
+                        <strong>${new Date(holiday.date).toLocaleDateString('hi-IN')}</strong>
+                        ${holiday.reason ? `<br><small class="text-muted">${holiday.reason}</small>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function previousMonth() {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            displayCalendar();
+        }
+
+        function nextMonth() {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            displayCalendar();
+        }
+
+        function openHolidayModal() {
+            const form = document.getElementById('addHolidayForm');
+            form.reset();
+            form.classList.remove('was-validated');
+            new bootstrap.Modal(document.getElementById('addHolidayModal')).show();
+        }
+
+        // Holiday Form Submit
+        document.getElementById('addHolidayForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!this.checkValidity()) {
+                e.stopPropagation();
+                this.classList.add('was-validated');
+                return;
+            }
+            
+            const holidayData = {
+                start_date: document.getElementById('holidayStartDate').value,
+                end_date: document.getElementById('holidayEndDate').value || document.getElementById('holidayStartDate').value,
+                reason: document.getElementById('holidayReason').value.trim() || null
+            };
+
+            try {
+                await apiCall('/calendar/add-holiday', 'POST', holidayData);
+                showAlert('सुट्टी यशस्वीरीत्या जोडली गेली!', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('addHolidayModal')).hide();
+                loadCalendar();
+            } catch (error) {
+                // Error already handled in apiCall
+            }
+        });
+
+        // Attendance Functions
+        async function loadAttendanceSummary() {
+            const date = document.getElementById('attendanceDate').value;
+            if (!date) {
+                showAlert('कृपया तारीख निवडा', 'warning');
+                return;
+            }
+
+            try {
+                const response = await apiCall(`/attendance/summary?date=${date}`);
+                displayAttendanceSummary(response.data);
+            } catch (error) {
+                document.getElementById('attendanceSummary').innerHTML = 
+                    '<div class="text-center text-danger">हजेरी लोड करण्यात त्रुटी: ' + error.message + '</div>';
+            }
+        }
+
+        function displayAttendanceSummary(data) {
+            const summaryDiv = document.getElementById('attendanceSummary');
+            
+            if (!data || data.length === 0) {
+                summaryDiv.innerHTML = '<p class="text-center">या तारखेसाठी हजेरी उपलब्ध नाही</p>';
+                return;
+            }
+
+            let html = '<div class="row">';
+            let totalPresent = 0;
+            let totalAbsent = 0;
+            let totalStudents = 0;
+            
+            data.forEach(classData => {
+                totalPresent += classData.present || 0;
+                totalAbsent += classData.absent || 0;
+                totalStudents += classData.total || 0;
+                
+                html += `
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6>इयत्ता ${classData.class} - ${classData.section}</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-4">
+                                        <div class="text-success">
+                                            <strong>${classData.present || 0}</strong><br>
+                                            <small>उपस्थित</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="text-danger">
+                                            <strong>${classData.absent || 0}</strong><br>
+                                            <small>अनुपस्थित</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="text-primary">
+                                            <strong>${classData.total || 0}</strong><br>
+                                            <small>एकूण</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // Add total summary
+            html += `
+                <div class="col-md-12">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h5 class="text-center">एकूण सारांश</h5>
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="text-success">
+                                        <strong>${totalPresent}</strong><br>
+                                        <small>एकूण उपस्थित</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-danger">
+                                        <strong>${totalAbsent}</strong><br>
+                                        <small>एकूण अनुपस्थित</small>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-primary">
+                                        <strong>${totalStudents}</strong><br>
+                                        <small>एकूण विद्यार्थी</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            html += '</div>';
+            summaryDiv.innerHTML = html;
+        }
+
+        // Report Functions
+        async function generateMonthlyReport() {
+            const month = document.getElementById('monthSelect').value;
+            const year = document.getElementById('yearSelect').value;
+            
+            try {
+                const response = await apiCall(`/reports/yearly?year=${academicYear}`);
+                displayReport(response.report, 'वार्षिक अहवाल', `शैक्षणिक वर्ष ${academicYear}`);
+            } catch (error) {
+                document.getElementById('reportContent').innerHTML = 
+                    '<div class="text-center text-danger">अहवाल तयार करण्यात त्रुटी: ' + error.message + '</div>';
+            }
+        }
+
+        function displayReport(reportData, title, subtitle) {
+            const reportDiv = document.getElementById('reportContent');
+            
+            let html = `
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5>${title}</h5>
+                            <small class="text-muted">${subtitle}</small>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm" onclick="printReport()">
+                            <i class="bi bi-printer"></i> Print
+                        </button>
+                    </div>
+                    <div class="card-body" id="printableReport">
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>इयत्ता</th>
+                                        <th>तुकडी</th>
+                                        <th>एकूण विद्यार्थी</th>
+                                        <th>उपस्थित दिवस</th>
+                                        <th>अनुपस्थित दिवस</th>
+                                        <th>हजेरी टक्केवारी</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+            `;
+            
+            if (reportData && reportData.length > 0) {
+                let totalStudents = 0;
+                let totalPresentDays = 0;
+                let totalAbsentDays = 0;
+                
+                reportData.forEach(row => {
+                    totalStudents += row.total_students || 0;
+                    totalPresentDays += row.present_days || 0;
+                    totalAbsentDays += row.absent_days || 0;
+                    
+                    const percentage = row.attendance_percentage || 0;
+                    const percentageClass = percentage >= 75 ? 'text-success' : percentage >= 50 ? 'text-warning' : 'text-danger';
+                    
+                    html += `
+                        <tr>
+                            <td>${row.class}</td>
+                            <td>${row.section}</td>
+                            <td>${row.total_students || 0}</td>
+                            <td class="text-success">${row.present_days || 0}</td>
+                            <td class="text-danger">${row.absent_days || 0}</td>
+                            <td class="${percentageClass}"><strong>${percentage}%</strong></td>
+                        </tr>
+                    `;
+                });
+                
+                // Add total row
+                const overallPercentage = totalPresentDays + totalAbsentDays > 0 ? 
+                    Math.round((totalPresentDays / (totalPresentDays + totalAbsentDays)) * 100) : 0;
+                const overallPercentageClass = overallPercentage >= 75 ? 'text-success' : overallPercentage >= 50 ? 'text-warning' : 'text-danger';
+                
+                html += `
+                    <tr class="table-secondary">
+                        <td colspan="2"><strong>एकूण</strong></td>
+                        <td><strong>${totalStudents}</strong></td>
+                        <td class="text-success"><strong>${totalPresentDays}</strong></td>
+                        <td class="text-danger"><strong>${totalAbsentDays}</strong></td>
+                        <td class="${overallPercentageClass}"><strong>${overallPercentage}%</strong></td>
+                    </tr>
+                `;
+            } else {
+                html += '<tr><td colspan="6" class="text-center">डेटा उपलब्ध नाही</td></tr>';
+            }
+            
+            html += `
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <strong>नोंद:</strong> 
+                                <span class="text-success">75% किंवा त्याहून अधिक</span> - उत्तम, 
+                                <span class="text-warning">50-74%</span> - सरासरी, 
+                                <span class="text-danger">50% पेक्षा कमी</span> - लक्ष देणे आवश्यक
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            reportDiv.innerHTML = html;
+        }
+
+        function printReport() {
+            const printContent = document.getElementById('printableReport').innerHTML;
+            const originalContent = document.body.innerHTML;
+            
+            document.body.innerHTML = `
+                <div style="padding: 20px; font-family: Arial, sans-serif;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <h2>${currentSchool.name}</h2>
+                        <h3>हजेरी अहवाल</h3>
+                        <p>तारीख: ${new Date().toLocaleDateString('hi-IN')}</p>
+                    </div>
+                    ${printContent}
+                </div>
+            `;
+            
+            window.print();
+            document.body.innerHTML = originalContent;
+            location.reload(); // Reload to restore functionality
+        }
+
+        // Utility Functions
+        function showAlert(message, type = 'info') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+            alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(alertDiv);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.parentNode.removeChild(alertDiv);
+                }
+            }, 5000);
+        }
+
+        function getMonthName(monthNumber) {
+            const months = [
+                '', 'जानेवारी', 'फेब्रुवारी', 'मार्च', 'एप्रिल', 'मे', 'जून',
+                'जुलै', 'ऑगस्ट', 'सप्टेंबर', 'ऑक्टोबर', 'नोव्हेंबर', 'डिसेंबर'
+            ];
+            return months[parseInt(monthNumber)];
+        }
+
+        // Edit Functions (for future implementation)
+        function editTeacher(id) {
+            showAlert('Edit Teacher functionality लवकरच उपलब्ध होईल', 'info');
+        }
+
+        function editStudent(id) {
+            showAlert('Edit Student functionality लवकरच उपलब्ध होईल', 'info');
+        }
+
+        // Form Validation Enhancement
+        function validateMobileNumber(input) {
+            const mobile = input.value.replace(/\D/g, ''); // Remove non-digits
+            input.value = mobile;
+            
+            if (mobile.length !== 10) {
+                input.setCustomValidity('मोबाईल नंबर 10 अंकी असावा');
+            } else {
+                input.setCustomValidity('');
+            }
+        }
+
+        function validateAadharNumber(input) {
+            const aadhar = input.value.replace(/\D/g, ''); // Remove non-digits
+            input.value = aadhar;
+            
+            if (aadhar && aadhar.length !== 12) {
+                input.setCustomValidity('आधार नंबर 12 अंकी असावा');
+            } else {
+                input.setCustomValidity('');
+            }
+        }
+
+        // Add event listeners for validation
+        document.addEventListener('DOMContentLoaded', function() {
+            // Mobile number validation
+            document.getElementById('teacherMobile')?.addEventListener('input', function() {
+                validateMobileNumber(this);
+            });
+            
+            document.getElementById('parentMobile')?.addEventListener('input', function() {
+                validateMobileNumber(this);
+            });
+            
+            // Aadhar number validation
+            document.getElementById('aadharNumber')?.addEventListener('input', function() {
+                validateAadharNumber(this);
+            });
+        });
+
+        // Connection Status Check
+        let connectionCheckInterval;
+        
+        function checkConnection() {
+            fetch(`${API_BASE}/health`)
+                .then(response => {
+                    if (response.ok) {
+                        document.body.classList.remove('connection-lost');
+                    } else {
+                        throw new Error('Server not responding');
+                    }
+                })
+                .catch(() => {
+                    document.body.classList.add('connection-lost');
+                    showAlert('Server connection lost. कृपया पुन्हा प्रयत्न करा.', 'warning');
+                });
+        }
+
+        // Start connection check
+        connectionCheckInterval = setInterval(checkConnection, 30000); // Check every 30 seconds
+
+        // Clear interval on page unload
+        window.addEventListener('beforeunload', function() {
+            if (connectionCheckInterval) {
+                clearInterval(connectionCheckInterval);
+            }
+        });
+    </script>
+</body>
+</html>
+            
+            try {
+                const response = await apiCall(`/reports/monthly?month=${month}&year=${year}`);
+                displayReport(response.report, 'मासिक अहवाल', `${getMonthName(month)} ${year}`);
+            } catch (error) {
+                document.getElementById('reportContent').innerHTML = 
+                    '<div class="text-center text-danger">अहवाल तयार करण्यात त्रुटी: ' + error.message + '</div>';
+            }
+        }
+
+        async function generateYearlyReport() {
+            const academicYear = document.getElementById('academicYear').value;
+            
+            document.getElementById('reportContent').innerHTML = '<div class="text-center"><div class="spinner-border" role="status"></div><p>अहवाल तयार होत आहे...</p></div>';
+            <!DOCTYPE html>
+<html lang="mr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Principal Dashboard - शाळा हजेरी व्यवस्थापन</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .dashboard-header {
+            background: white;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .nav-pills .nav-link {
+            margin: 0.2rem;
+            border-radius: 8px;
+            color: #495057;
+            background: white;
+            border: 2px solid transparent;
+        }
+        .nav-pills .nav-link.active {
+            background: #007bff;
+            color: white;
+        }
+        .tab-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            min-height: 500px;
+        }
+        .btn-primary {
+            background: linear-gradient(45deg, #007bff, #0056b3);
+            border: none;
+            padding: 0.7rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card {
+            text-align: center;
+            padding: 2rem;
+        }
+        .stat-number {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        /* Calendar Styles */
+        .calendar-container {
+            max-width: 400px;
+        }
+        .calendar-grid {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .calendar-header {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            background: #f8f9fa;
+        }
+        .calendar-day-header {
+            padding: 8px;
+            text-align: center;
+            font-weight: bold;
+            border-right: 1px solid #dee2e6;
+            font-size: 0.9rem;
+        }
+        .calendar-body {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+        }
+        .calendar-day {
+            position: relative;
+            padding: 10px 5px;
+            text-align: center;
+            border-right: 1px solid #dee2e6;
+            border-bottom: 1px solid #dee2e6;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .calendar-day:hover {
+            background-color: #f8f9fa;
+        }
+        .calendar-day.empty {
+            background-color: #f8f9fa;
+            cursor: default;
+        }
+        .calendar-day.today {
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+        .calendar-day.holiday {
+            background-color: #dc3545;
+            color: white;
+        }
+        .calendar-day.sunday {
+            background-color: #ff6b6b;
+            color: white;
+        }
+        .calendar-day.today.holiday {
+            background-color: #6f42c1;
+        }
+        .holiday-dot {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 6px;
+            height: 6px;
+            background-color: #ffc107;
+            border-radius: 50%;
+        }
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #6c757d;
+        }
+
+        /* Form validation styles */
+        .was-validated .form-control:invalid {
+            border-color: #dc3545;
+        }
+        .was-validated .form-control:valid {
+            border-color: #198754;
+        }
+        .error-message {
+            color: #dc3545;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        /* Connection status */
+        .connection-lost::before {
+            content: "Server Connection Lost";
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #dc3545;
+            color: white;
+            text-align: center;
+            padding: 5px;
+            z-index: 10000;
+            font-weight: bold;
+        }
+        
+        .spinner-border {
+            width: 1rem;
+            height: 1rem;
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .nav-pills .nav-link {
+                font-size: 0.9rem;
+                padding: 0.5rem 0.8rem;
+            }
+            .stat-number {
+                font-size: 2rem;
+            }
+            .calendar-container {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid p-4">
+        <!-- Header -->
+        <div class="dashboard-header">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h1 class="mb-0">मुख्याध्यापक Dashboard</h1>
+                    <p class="text-muted mb-0" id="schoolName">शाळा लोड होत आहे...</p>
+                </div>
+                <div class="col-md-6 text-end">
+                    <button class="btn btn-outline-danger" onclick="logout()">
+                        <i class="bi bi-box-arrow-right"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-pills mb-4" id="pills-tab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" 
+                        type="button" role="tab" onclick="showTab('overview')">
+                    <i class="bi bi-house"></i> सारांश
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="calendar-tab" data-bs-toggle="pill" data-bs-target="#calendar" 
+                        type="button" role="tab" onclick="showTab('calendar')">
+                    <i class="bi bi-calendar"></i> कॅलेंडर
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="teachers-tab" data-bs-toggle="pill" data-bs-target="#teachers" 
+                        type="button" role="tab" onclick="showTab('teachers')">
+                    <i class="bi bi-people"></i> शिक्षक व्यवस्थापन
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="students-tab" data-bs-toggle="pill" data-bs-target="#students" 
+                        type="button" role="tab" onclick="showTab('students')">
+                    <i class="bi bi-person-plus"></i> विद्यार्थी व्यवस्थापन
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="attendance-tab" data-bs-toggle="pill" data-bs-target="#attendance" 
+                        type="button" role="tab" onclick="showTab('attendance')">
+                    <i class="bi bi-check-circle"></i> शाळेची हजेरी
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="reports-tab" data-bs-toggle="pill" data-bs-target="#reports" 
+                        type="button" role="tab" onclick="showTab('reports')">
+                    <i class="bi bi-file-earmark-text"></i> अहवाल
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <!-- Overview Tab -->
+            <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                <h2 class="mb-4">शाळा सारांश</h2>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body">
+                                <div class="stat-number" id="totalStudents">0</div>
+                                <h5>एकूण विद्यार्थी</h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body">
+                                <div class="stat-number" id="totalTeachers">0</div>
+                                <h5>एकूण शिक्षक</h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body">
+                                <div class="stat-number" id="todayPresent">0</div>
+                                <h5>आज उपस्थित</h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body">
+                                <div class="stat-number" id="todayAbsent">0</div>
+                                <h5>आज अनुपस्थित</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calendar Tab -->
+            <div class="tab-pane fade" id="calendar" role="tabpanel">
+                <h2 class="mb-4">कॅलेंडर व्यवस्थापन</h2>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <button class="btn btn-primary" onclick="openHolidayModal()">
+                                <i class="bi bi-plus"></i> नवीन सुट्टी जोडा
+                            </button>
+                            <div>
+                                <button class="btn btn-outline-primary btn-sm" onclick="previousMonth()">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                                <span id="currentMonthYear" class="mx-3 fw-bold">जून 2025</span>
+                                <button class="btn btn-outline-primary btn-sm" onclick="nextMonth()">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="calendar-container">
+                            <div id="calendarView">
+                                <div class="loading">कॅलेंडर लोड होत आहे...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h4>आगामी सुट्ट्या</h4>
+                        <div id="upcomingHolidays">
+                            <div class="loading">सुट्ट्या लोड होत आहेत...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Teachers Tab -->
+            <div class="tab-pane fade" id="teachers" role="tabpanel">
+                <h2 class="mb-4">शिक्षक व्यवस्थापन</h2>
+                <button class="btn btn-primary mb-3" onclick="openAddTeacherModal()">
+                    <i class="bi bi-plus"></i> नवीन शिक्षक जोडा
+                </button>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>अनु क्र.</th>
+                                <th>नाव</th>
+                                <th>मोबाईल</th>
+                                <th>इयत्ता</th>
+                                <th>तुकडी</th>
+                                <th>कृती</th>
+                            </tr>
+                        </thead>
+                        <tbody id="teachersTableBody">
+                            <tr>
+                                <td colspan="6" class="text-center loading">शिक्षक लोड होत आहेत...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Students Tab -->
+            <div class="tab-pane fade" id="students" role="tabpanel">
+                <h2 class="mb-4">विद्यार्थी व्यवस्थापन</h2>
+                <button class="btn btn-primary mb-3" onclick="openAddStudentModal()">
+                    <i class="bi bi-plus"></i> नवीन विद्यार्थी जोडा
+                </button>
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <select class="form-control" id="filterClass" onchange="filterStudents()">
+                            <option value="">सर्व इयत्ता</option>
+                            <option value="1">पहिली</option>
+                            <option value="2">दुसरी</option>
+                            <option value="3">तिसरी</option>
+                            <option value="4">चौथी</option>
+                            <option value="5">पाचवी</option>
+                            <option value="6">सहावी</option>
+                            <option value="7">सातवी</option>
+                            <option value="8">आठवी</option>
+                            <option value="9">नववी</option>
+                            <option value="10">दहावी</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-control" id="filterSection" onchange="filterStudents()">
+                            <option value="">सर्व तुकडी</option>
+                            <option value="A">A</option>
+                            <option value="B">B</option>
+                            <option value="C">C</option>
+                            <option value="D">D</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="searchStudent" placeholder="विद्यार्थी शोधा..." onkeyup="searchStudents()">
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>हजेरी क्र.</th>
+                                <th>नाव</th>
+                                <th>आईचे नाव</th>
+                                <th>इयत्ता</th>
+                                <th>तुकडी</th>
+                                <th>मोबाईल</th>
+                                <th>कृती</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentsTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center loading">विद्यार्थी लोड होत आहेत...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Attendance Tab -->
+            <div class="tab-pane fade" id="attendance" role="tabpanel">
+                <h2 class="mb-4">शाळेची हजेरी सारांश</h2>
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="attendanceDate" class="form-label">तारीख निवडा:</label>
+                        <input type="date" class="form-control" id="attendanceDate">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-primary d-block" onclick="loadAttendanceSummary()">
+                            हजेरी दाखवा
+                        </button>
+                    </div>
+                </div>
+                <div id="attendanceSummary" class="mt-4">
+                    <p>तारीख निवडा व हजेरी दाखवा button दाबा</p>
+                </div>
+            </div>
+
+            <!-- Reports Tab -->
+            <div class="tab-pane fade" id="reports" role="tabpanel">
+                <h2 class="mb-4">अहवाल</h2>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5>मासिक अहवाल</h5>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <select class="form-control" id="monthSelect">
+                                            <option value="1">जानेवारी</option>
+                                            <option value="2">फेब्रुवारी</option>
+                                            <option value="3">मार्च</option>
+                                            <option value="4">एप्रिल</option>
+                                            <option value="5">मे</option>
+                                            <option value="6">जून</option>
+                                            <option value="7">जुलै</option>
+                                            <option value="8">ऑगस्ट</option>
+                                            <option value="9">सप्टेंबर</option>
+                                            <option value="10">ऑक्टोबर</option>
+                                            <option value="11">नोव्हेंबर</option>
+                                            <option value="12">डिसेंबर</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6">
+                                        <select class="form-control" id="yearSelect">
+                                            <option value="2024">2024</option>
+                                            <option value="2025">2025</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary mt-3" onclick="generateMonthlyReport()">
+                                    मासिक अहवाल तयार करा
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5>वार्षिक अहवाल</h5>
+                                <select class="form-control" id="academicYear">
+                                    <option value="2024-25">2024-25</option>
+                                    <option value="2023-24">2023-24</option>
+                                </select>
+                                <button class="btn btn-primary mt-3" onclick="generateYearlyReport()">
+                                    वार्षिक अहवाल तयार करा
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="reportContent" class="mt-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Teacher Modal -->
+    <div class="modal fade" id="addTeacherModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">नवीन शिक्षक जोडा</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="addTeacherForm" novalidate>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">शिक्षकाचे नाव *</label>
+                            <input type="text" class="form-control" id="teacherName" required>
+                            <div class="invalid-feedback">शिक्षकाचे नाव आवश्यक आहे</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">मोबाईल नंबर *</label>
+                            <input type="tel" class="form-control" id="teacherMobile" pattern="[0-9]{10}" required>
+                            <div class="invalid-feedback">10 अंकी मोबाईल नंबर आवश्यक आहे</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">इयत्ता</label>
+                                <select class="form-control" id="teacherClass">
+                                    <option value="">इयत्ता निवडा</option>
+                                    <option value="1">पहिली</option>
+                                    <option value="2">दुसरी</option>
+                                    <option value="3">तिसरी</option>
+                                    <option value="4">चौथी</option>
+                                    <option value="5">पाचवी</option>
+                                    <option value="6">सहावी</option>
+                                    <option value="7">सातवी</option>
+                                    <option value="8">आठवी</option>
+                                    <option value="9">नववी</option>
+                                    <option value="10">दहावी</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">तुकडी</label>
+                                <select class="form-control" id="teacherSection">
+                                    <option value="">तुकडी निवडा</option>
+                                    <option value="A">A</option>
+                                    <option value="B">B</option>
+                                    <option value="C">C</option>
+                                    <option value="D">D</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">रद्द करा</button>
+                        <button type="submit" class="btn btn-primary">शिक्षक जोडा</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Modal -->
+    <div class="modal fade" id="addStudentModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">नवीन विद्यार्थी जोडा</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="addStudentForm" novalidate>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">हजेरी क्रमांक *</label>
+                                <input type="number" class="form-control" id="studentRollNumber" required min="1">
+                                <div class="invalid-feedback">हजेरी क्रमांक आवश्यक आहे</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">विद्यार्थ्यांचे नाव *</label>
+                                <input type="text" class="form-control" id="studentName" required>
+                                <div class="invalid-feedback">विद्यार्थ्यांचे नाव आवश्यक आहे</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">आईचे नाव *</label>
+                                <input type="text" class="form-control" id="motherName" required>
+                                <div class="invalid-feedback">आईचे नाव आवश्यक आहे</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">जन्मदिनांक *</label>
+                                <input type="date" class="form-control" id="dateOfBirth" required>
+                                <div class="invalid-feedback">जन्मदिनांक आवश्यक आहे</div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">पत्ता *</label>
+                            <textarea class="form-control" id="studentAddress" rows="2" required></textarea>
+                            <div class="invalid-feedback">पत्ता आवश्यक आहे</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">पालकांचा मोबाईल *</label>
+                                <input type="tel" class="form-control" id="parentMobile" pattern="[0-9]{10}" required>
+                                <div class="invalid-feedback">10 अंकी मोबाईल नंबर आवश्यक आहे</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">आधार नंबर</label>
+                                <input type="text" class="form-control" id="aadharNumber" pattern="[0-9]{12}" maxlength="12">
+                                <div class="invalid-feedback">12 अंकी आधार नंबर आवश्यक आहे</div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Student ID</label>
+                                <input type="text" class="form-control" id="studentId">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">इयत्ता *</label>
+                                <select class="form-control" id="studentClass" required>
+                                    <option value="">इयत्ता निवडा</option>
+                                    <option value="1">पहिली</option>
+                                    <option value="2">दुसरी</option>
+                                    <option value="3">तिसरी</option>
+                                    <option value="4">चौथी</option>
+                                    <option value="5">पाचवी</option>
+                                    <option value="6">सहावी</option>
+                                    <option value="7">सातवी</option>
+                                    <option value="8">आठवी</option>
+                                    <option value="9">नववी</option>
+                                    <option value="10">दहावी</option>
+                                </select>
+                                <div class="invalid-feedback">इयत्ता निवडणे आवश्यक आहे</div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">तुकडी *</label>
+                                <select class="form-control" id="studentSection" required>
+                                    <option value="">तुकडी निवडा</option>
+                                    <option value="A">A</option>
+                                    <option value="B">B</option>
+                                    <option value="C">C</option>
+                                    <option value="D">D</option>
+                                </select>
+                                <div class="invalid-feedback">तुकडी निवडणे आवश्यक आहे</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="
