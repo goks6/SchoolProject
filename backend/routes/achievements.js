@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database-sqlite');
-const authMiddleware = require('../middleware/auth');
+const db = require('../database-sqlite'); // ← फाइलचा path योग्य केला
+const { authenticateToken } = require('../middleware/auth'); // ← सही middleware import
 const { body, validationResult } = require('express-validator');
 
 // Validation middleware
@@ -14,9 +14,9 @@ const validateAchievement = [
 ];
 
 // Get All Achievements
-router.get('/list', authMiddleware, async (req, res) => {
+router.get('/list', authenticateToken, async (req, res) => {
     try {
-        const { schoolId, role, userId } = req.user;
+        const { schoolId, role, id: userId } = req.user;
         const { 
             studentId,
             type, 
@@ -181,7 +181,7 @@ router.get('/list', authMiddleware, async (req, res) => {
 });
 
 // Get Achievement by ID
-router.get('/:id', authMiddleware, async (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
     try {
         const { schoolId } = req.user;
         const { id } = req.params;
@@ -225,7 +225,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
 // Create New Achievement
 router.post('/create', 
-    authMiddleware,
+    authenticateToken,
     validateAchievement,
     async (req, res) => {
         const errors = validationResult(req);
@@ -238,7 +238,7 @@ router.post('/create',
         }
 
         try {
-            const { schoolId, userId } = req.user;
+            const { schoolId, id: userId } = req.user;
             const { 
                 studentId, 
                 title, 
@@ -311,7 +311,7 @@ router.post('/create',
 
 // Update Achievement
 router.put('/update/:id', 
-    authMiddleware,
+    authenticateToken,
     validateAchievement,
     async (req, res) => {
         const errors = validationResult(req);
@@ -324,7 +324,7 @@ router.put('/update/:id',
         }
 
         try {
-            const { schoolId, userId, role } = req.user;
+            const { schoolId, id: userId, role } = req.user;
             const { id } = req.params;
             const { 
                 studentId, 
@@ -406,9 +406,9 @@ router.put('/update/:id',
 );
 
 // Delete Achievement
-router.delete('/delete/:id', authMiddleware, async (req, res) => {
+router.delete('/delete/:id', authenticateToken, async (req, res) => {
     try {
-        const { schoolId, userId, role } = req.user;
+        const { schoolId, id: userId, role } = req.user;
         const { id } = req.params;
 
         // Check if achievement exists and user has permission to delete
@@ -456,9 +456,9 @@ router.delete('/delete/:id', authMiddleware, async (req, res) => {
 });
 
 // Get Achievement Statistics
-router.get('/stats/summary', authMiddleware, async (req, res) => {
+router.get('/stats/summary', authenticateToken, async (req, res) => {
     try {
-        const { schoolId, role, userId } = req.user;
+        const { schoolId, role, id: userId } = req.user;
 
         let baseQuery = `FROM achievements a
                         JOIN students s ON a.student_id = s.id
@@ -561,7 +561,7 @@ router.get('/stats/summary', authMiddleware, async (req, res) => {
 });
 
 // Get Student's Achievements
-router.get('/student/:studentId', authMiddleware, async (req, res) => {
+router.get('/student/:studentId', authenticateToken, async (req, res) => {
     try {
         const { schoolId } = req.user;
         const { studentId } = req.params;

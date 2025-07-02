@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="mr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>शाळा हजेरी व्यवस्थापन - डॅशबोर्ड</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <!-- (Full CSS and style tags as in your original file) -->
+    <!-- ... style omitted for brevity ... -->
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <!-- ...sidebar content... -->
+        </div>
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- ...top bar and main content sections... -->
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="spinner-overlay" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="toast" class="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto">सूचना</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="api.js"></script>
+    <script>
+        // Global variables
+        let currentUser = null;
+        let students = [];
+        let attendanceData = {};
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!checkAuth()) return;
+            currentUser = getUser();
+            initializeDashboard();
+        });
+
+        async function initializeDashboard() {
+            try {
+                // Set user info
+                document.getElementById('userName').textContent = currentUser.name;
+                document.getElementById('userRole').textContent = currentUser.role === 'teacher' ? 'शिक्षक' : 'मुख्याध्यापक';
+                // Set today's date
+                const today = new Date();
+                document.getElementById('todayDate').textContent = today.toLocaleDateString('hi-IN', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                });
+                document.getElementById('attendanceDate').value = today.toISOString().split('T')[0];
+                await loadDashboardData();
+                setupEventListeners();
+            } catch (error) {
+                console.error('Initialization error:', error);
+                showToast('डॅशबोर्ड लोड करताना त्रुटी', 'error');
+            }
+        }
+
+        function setupEventListeners() {
+            // Study message character counter
+            const studyMessage = document.getElementById('studyMessage');
+            if (studyMessage) {
+                studyMessage.addEventListener('input', function() {
+                    document.getElementById('charCount').textContent = this.value.length;
+                });
+            }
+            // Study message form
+            const studyForm = document.getElementById('studyMessageForm');
+            if (studyForm) {
+                studyForm.addEventListener('submit', handleStudyMessage);
+            }
+            // Change password form
+            const passwordForm = document.getElementById('changePasswordForm');
+            if (passwordForm) {
+                passwordForm.addEventListener('submit', handleChangePassword);
+            }
+            // Attendance date change
+            const attendanceDate = document.getElementById('attendanceDate');
+            if (attendanceDate) {
+                attendanceDate.addEventListener('change', loadAttendanceList);
+            }
+        }
+
+        async function loadDashboardData() {
+            try {
+                // Load students
+                const studentsResponse = await studentAPI.list();
+                students = studentsResponse.students || [];
+                document.getElementById('totalStudents').textContent = students.length;
+                // Load today's attendance
+                const today = new Date().toISOString().split('T')[0];
+                const attendanceResponse = await attendanceAPI.getList(today);
+                let presentCount = 0;
+                let absentCount = 0;
+                if (attendanceResponse.students) {
+                    attendanceResponse.students.forEach(student => {
+                        if (student.status === 'present') presentCount++;
+                        else if (student.status === 'absent') absentCount++;
+                    });
+                }
+                document.getElementById('presentToday').textContent = presentCount;
+                document.getElementById('absentToday').textContent = absentCount;
+                const percentage = students.length > 0 ? Math.round((presentCount / students.length) * 100) : 0;
+                document.getElementById('attendancePercentage').textContent = percentage + '%';
+                document.getElementById('reportPresentToday').textContent = presentCount;
+                document.getElementById('reportAbsentToday').textContent = absentCount;
+                // Load school details
+                const schoolResponse = await schoolAPI.getDetails();
+                if (schoolResponse.school) {
+                    document.getElementById('schoolName').textContent = schoolResponse.school.name;
+                }
+                // Set profile info
+                document.getElementById('profileName').value = currentUser.name;
+                document.getElementById('profileRole').value = currentUser.role === 'teacher' ? 'शिक्षक' : 'मुख्याध्यापक';
+                document.getElementById('profileSchool').value = schoolResponse.school?.name || '';
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+                showToast('डेटा लोड करताना त्रुटी', 'error');
+            }
+        }
+
+        // Section Navigation
+        function showSection(sectionName) {
+            // Hide all sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            // Show selected section
+            document.getElementById(`${sectionName}-section`).classList.add('active');
+            // Update sidebar active state
+            document.querySelectorAll('.sidebar-menu a').forEach(link => {
+                link.classList.remove('active');
+            });
+            document.getElementById(`${sectionName}-link`).classList.add('active');
+            // Update page title
+            const titles = {
+                dashboard: 'डॅशबोर्ड',
+                attendance: 'हजेरी',
+                students: 'विद्यार्थी',
+                study: 'अभ्यास',
+                reports: 'अहवाल',
+                settings: 'सेटिंग्ज'
+            };
+            document.getElementById('pageTitle').textContent = titles[sectionName];
+            // Load section-specific data
+            switch(sectionName) {
+                case 'students':
+                    loadStudentsList();
+                    break;
+                case 'attendance':
+                    loadAttendanceList();
+                    break;
+            }
+            // Close sidebar on mobile
+            if (window.innerWidth <= 768) {
+                toggleSidebar();
+            }
+        }
+
+        async function loadStudentsList() {
+            try {
+                const tbody = document.getElementById('studentsList');
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">डेटा लोड होत आहे...</td></tr>';
+                if (students.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">अद्याप कोणतेही विद्यार्थी जोडलेले नाहीत</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = '';
+                students.forEach(student => {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td>
+                            <div class="d-flex align-items-center justify-content-center bg-primary text-white rounded-circle" style="width: 35px; height: 35px; font-weight: bold;">
+                                ${student.roll_number}
+                            </div>
+                        </td>
+                        <td>${student.name}</td>
+                        <td>${student.mother_name || '-'}</td>
+                        <td>${student.parent_mobile}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="editStudent(${student.id})">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                        </td>
+                    `;
+                });
+            } catch (error) {
+                console.error('Error loading students:', error);
+                showToast('विद्यार्थी यादी लोड करताना त्रुटी', 'error');
+            }
+        }
+
+        async function loadAttendanceList() {
+            try {
+                const container = document.getElementById('attendanceList');
+                const date = document.getElementById('attendanceDate').value;
+                container.innerHTML = '<p class="text-center text-muted">डेटा लोड होत आहे...</p>';
+                const response = await attendanceAPI.getList(date);
+                const attendanceStudents = response.students || [];
+                if (attendanceStudents.length === 0) {
+                    container.innerHTML = '<p class="text-center text-muted">या तारखेसाठी कोणतेही विद्यार्थी नाहीत</p>';
+                    return;
+                }
+                let html = '<div class="row">';
+                attendanceStudents.forEach(student => {
+                    const status = student.status || null;
+                    attendanceData[student.id] = status;
+                    html += `
+                        <div class="col-12 mb-3">
+                            <div class="d-flex align-items-center justify-content-between p-3 bg-light rounded">
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; font-weight: bold;">
+                                        ${student.roll_number}
+                                    </div>
+                                    <div>
+                                        <strong>${student.name}</strong>
+                                        <br><small class="text-muted">${student.parent_mobile}</small>
+                                    </div>
+                                </div>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn ${status === 'present' ? 'btn-success' : 'btn-outline-success'}" 
+                                            onclick="markAttendance(${student.id}, 'present')">
+                                        उपस्थित
+                                    </button>
+                                    <button type="button" class="btn ${status === 'absent' ? 'btn-danger' : 'btn-outline-danger'}" 
+                                            onclick="markAttendance(${student.id}, 'absent')">
+                                        अनुपस्थित
+                                    </button>
+                                    <button type="button" class="btn ${status === 'late' ? 'btn-warning' : 'btn-outline-warning'}" 
+                                            onclick="markAttendance(${student.id}, 'late')">
+                                        उशीर
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading attendance:', error);
+                showToast('हजेरी लोड करताना त्रुटी', 'error');
+            }
+        }
+
+        function markAttendance(studentId, status) {
+            attendanceData[studentId] = status;
+            loadAttendanceList(); // Refresh the list to show updated buttons
+        }
+
+        async function saveAttendance() {
+            try {
+                const date = document.getElementById('attendanceDate').value;
+                const attendance = [];
+                for (const studentId in attendanceData) {
+                    if (attendanceData[studentId]) {
+                        attendance.push({
+                            studentId: parseInt(studentId),
+                            status: attendanceData[studentId]
+                        });
+                    }
+                }
+                if (attendance.length === 0) {
+                    showToast('कृपया किमान एका विद्यार्थ्याची हजेरी नोंदवा', 'warning');
+                    return;
+                }
+                const response = await attendanceAPI.mark(date, attendance);
+                showToast('हजेरी यशस्वीरित्या जतन केली', 'success');
+                await loadDashboardData();
+            } catch (error) {
+                console.error('Error saving attendance:', error);
+                showToast('हजेरी जतन करताना त्रुटी', 'error');
+            }
+        }
+
+        async function handleStudyMessage(e) {
+            e.preventDefault();
+            const message = document.getElementById('studyMessage').value.trim();
+            if (!message) {
+                showToast('कृपया संदेश लिहा', 'warning');
+                return;
+            }
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                await attendanceAPI.sendStudyMessage(message, today);
+                showToast('अभ्यास संदेश यशस्वीरित्या पाठवला', 'success');
+                document.getElementById('studyMessage').value = '';
+                document.getElementById('charCount').textContent = '0';
+                // Add to previous messages
+                const previousMessages = document.getElementById('previousMessages');
+                const messageHtml = `
+                    <div class="border-start border-primary border-3 ps-3 mb-3">
+                        <p class="mb-1">${message}</p>
+                        <small class="text-muted">${new Date().toLocaleDateString('hi-IN')} - ${new Date().toLocaleTimeString('hi-IN', {hour: '2-digit', minute: '2-digit'})}</small>
+                    </div>
+                `;
+                previousMessages.innerHTML = messageHtml + previousMessages.innerHTML;
+            } catch (error) {
+                console.error('Error sending study message:', error);
+                showToast('संदेश पाठवताना त्रुटी', 'error');
+            }
+        }
+
+        async function handleChangePassword(e) {
+            e.preventDefault();
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                showToast('सर्व फील्ड भरणे आवश्यक आहे', 'warning');
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                showToast('नवीन पासवर्ड जुळत नाही', 'error');
+                return;
+            }
+            if (newPassword.length < 6) {
+                showToast('पासवर्ड किमान 6 अक्षरांचा असावा', 'error');
+                return;
+            }
+            try {
+                await authAPI.changePassword({
+                    currentPassword: currentPassword,
+                    newPassword: newPassword
+                });
+                showToast('पासवर्ड यशस्वीरित्या बदलला', 'success');
+                document.getElementById('changePasswordForm').reset();
+            } catch (error) {
+                console.error('Error changing password:', error);
+                showToast('पासवर्ड बदलताना त्रुटी', 'error');
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('active');
+        }
+
+        function showAddStudentModal() {
+            showToast('विद्यार्थी जोडण्याचे फीचर लवकरच उपलब्ध होईल', 'info');
+        }
+
+        function editStudent(id) {
+            showToast('विद्यार्थी संपादन फीचर लवकरच उपलब्ध होईल', 'info');
+        }
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function(e) {
+            const sidebar = document.getElementById('sidebar');
+            const isClickInsideSidebar = sidebar.contains(e.target);
+            const isMenuButton = e.target.closest('.mobile-menu-btn');
+            if (!isClickInsideSidebar && !isMenuButton && window.innerWidth <= 768) {
+                sidebar.classList.remove('active');
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            const sidebar = document.getElementById('sidebar');
+            if (window.innerWidth > 768) {
+                sidebar.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>

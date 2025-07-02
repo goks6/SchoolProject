@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database-sqlite');
-const authMiddleware = require('../middleware/auth');
+const db = require('../database-sqlite'); // ← path fix
+const { authenticateToken } = require('../middleware/auth'); // ← correct import
 
 // Get Today's Attendance Summary
-router.get('/today', authMiddleware, async (req, res) => {
+router.get('/today', authenticateToken, async (req, res) => {
     try {
         const { schoolId } = req.user;
         const today = new Date().toISOString().split('T')[0];
@@ -48,9 +48,9 @@ router.get('/today', authMiddleware, async (req, res) => {
 });
 
 // Get Attendance List for Date
-router.get('/list', authMiddleware, async (req, res) => {
+router.get('/list', authenticateToken, async (req, res) => {
     try {
-        const { schoolId, role, userId } = req.user;
+        const { schoolId, role, id: userId } = req.user;
         const { date, class: className, section } = req.query;
         const targetDate = date || new Date().toISOString().split('T')[0];
 
@@ -110,9 +110,9 @@ router.get('/list', authMiddleware, async (req, res) => {
 });
 
 // Mark Attendance
-router.post('/mark', authMiddleware, async (req, res) => {
+router.post('/mark', authenticateToken, async (req, res) => {
     try {
-        const { schoolId, userId } = req.user;
+        const { schoolId, id: userId } = req.user;
         const { date, attendance } = req.body;
 
         if (!date || !Array.isArray(attendance)) {
@@ -180,11 +180,9 @@ router.post('/mark', authMiddleware, async (req, res) => {
         }
 
         // Here you would integrate SMS/WhatsApp service
-        // For now, we'll just log the absent students
         if (absentStudents.length > 0) {
             console.log('Absent students for SMS:', absentStudents);
             // TODO: Send SMS to parents of absent students
-            // Message: "आपला पाल्य आज शाळेत आला नाही. याची नोंद पालकांनी घ्यावी"
         }
 
         res.json({
@@ -212,9 +210,9 @@ router.post('/mark', authMiddleware, async (req, res) => {
 });
 
 // Send Study Message
-router.post('/study-message', authMiddleware, async (req, res) => {
+router.post('/study-message', authenticateToken, async (req, res) => {
     try {
-        const { schoolId, userId, role } = req.user;
+        const { schoolId, id: userId, role } = req.user;
         const { message, date } = req.body;
 
         if (!message || !date) {
@@ -260,7 +258,6 @@ router.post('/study-message', authMiddleware, async (req, res) => {
         // Here you would integrate SMS/WhatsApp service
         console.log('Study message to send:', message);
         console.log('Students to notify:', students.length);
-        // TODO: Send study message to all parents
 
         res.json({
             success: true,
@@ -282,9 +279,9 @@ router.post('/study-message', authMiddleware, async (req, res) => {
 });
 
 // Send Notice
-router.post('/notice', authMiddleware, async (req, res) => {
+router.post('/notice', authenticateToken, async (req, res) => {
     try {
-        const { schoolId, userId, role } = req.user;
+        const { schoolId, id: userId, role } = req.user;
         const { message, targetType, selectedStudents } = req.body;
 
         if (!message) {
@@ -343,7 +340,6 @@ router.post('/notice', authMiddleware, async (req, res) => {
         // Here you would integrate SMS/WhatsApp service
         console.log('Notice to send:', message);
         console.log('Students to notify:', students.length);
-        // TODO: Send notice to selected parents
 
         res.json({
             success: true,
@@ -365,9 +361,9 @@ router.post('/notice', authMiddleware, async (req, res) => {
 });
 
 // Get Study Messages
-router.get('/study-messages', authMiddleware, async (req, res) => {
+router.get('/study-messages', authenticateToken, async (req, res) => {
     try {
-        const { schoolId, userId, role } = req.user;
+        const { schoolId, id: userId, role } = req.user;
         const { startDate, endDate, limit = 50 } = req.query;
 
         let query = `SELECT m.*, u.name as teacher_name
@@ -411,7 +407,7 @@ router.get('/study-messages', authMiddleware, async (req, res) => {
 });
 
 // Get Monthly Report
-router.get('/monthly-report', authMiddleware, async (req, res) => {
+router.get('/monthly-report', authenticateToken, async (req, res) => {
     try {
         const { schoolId } = req.user;
         const { year, month, class: className, section } = req.query;
@@ -474,9 +470,9 @@ router.get('/monthly-report', authMiddleware, async (req, res) => {
 });
 
 // Get Statistics
-router.get('/statistics', authMiddleware, async (req, res) => {
+router.get('/statistics', authenticateToken, async (req, res) => {
     try {
-        const { schoolId, role, userId } = req.user;
+        const { schoolId, role, id: userId } = req.user;
         const { startDate, endDate } = req.query;
 
         let query = `SELECT 

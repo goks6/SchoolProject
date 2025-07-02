@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database-sqlite');
-const authMiddleware = require('../middleware/auth');
+const db = require('../database-sqlite'); // PATH FIXED
+const { authenticateToken } = require('../middleware/auth'); // Use authenticateToken middleware
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 
 // Get School Details
-router.get('/details', authMiddleware, async (req, res) => {
+router.get('/details', authenticateToken, async (req, res) => {
     try {
         const { schoolId } = req.user;
 
@@ -58,7 +58,7 @@ router.get('/details', authMiddleware, async (req, res) => {
 });
 
 // Get Teachers List
-router.get('/teachers', authMiddleware, async (req, res) => {
+router.get('/teachers', authenticateToken, async (req, res) => {
     try {
         const { schoolId } = req.user;
 
@@ -88,7 +88,7 @@ router.get('/teachers', authMiddleware, async (req, res) => {
 
 // Add Teacher
 router.post('/add-teacher',
-    authMiddleware,
+    authenticateToken,
     [
         body('name').notEmpty().trim(),
         body('mobile').matches(/^\d{10}$/),
@@ -166,7 +166,7 @@ router.post('/add-teacher',
 );
 
 // Reset Teacher Password
-router.post('/reset-teacher-password', authMiddleware, async (req, res) => {
+router.post('/reset-teacher-password', authenticateToken, async (req, res) => {
     if (req.user.role !== 'principal') {
         return res.status(403).json({
             success: false,
@@ -214,7 +214,7 @@ router.post('/reset-teacher-password', authMiddleware, async (req, res) => {
 });
 
 // Delete Teacher
-router.delete('/teacher/:teacherId', authMiddleware, async (req, res) => {
+router.delete('/teacher/:teacherId', authenticateToken, async (req, res) => {
     if (req.user.role !== 'principal') {
         return res.status(403).json({
             success: false,
@@ -259,7 +259,7 @@ router.delete('/teacher/:teacherId', authMiddleware, async (req, res) => {
 });
 
 // Set Holidays
-router.post('/holidays', authMiddleware, async (req, res) => {
+router.post('/holidays', authenticateToken, async (req, res) => {
     if (req.user.role !== 'principal') {
         return res.status(403).json({
             success: false,
@@ -302,7 +302,7 @@ router.post('/holidays', authMiddleware, async (req, res) => {
 });
 
 // Get Holidays
-router.get('/holidays', authMiddleware, async (req, res) => {
+router.get('/holidays', authenticateToken, async (req, res) => {
     try {
         const { schoolId } = req.user;
         const { year, month } = req.query;
@@ -334,7 +334,7 @@ router.get('/holidays', authMiddleware, async (req, res) => {
 });
 
 // Get Attendance Summary
-router.get('/attendance-summary', authMiddleware, async (req, res) => {
+router.get('/attendance-summary', authenticateToken, async (req, res) => {
     try {
         const { schoolId } = req.user;
         const { date } = req.query;

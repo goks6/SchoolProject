@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const router = express.Router();
-const db = require('../config/database-sqlite');
+const db = require('../database-sqlite'); // PATH FIXED
 const { body, validationResult } = require('express-validator');
 
 // Validation middleware

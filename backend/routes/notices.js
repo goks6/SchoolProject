@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database-sqlite');
-const authMiddleware = require('../middleware/auth');
+const db = require('../database-sqlite'); // PATH FIXED
+const { authenticateToken } = require('../middleware/auth'); // Use authenticateToken middleware
 const { body, validationResult } = require('express-validator');
 
 // Validation middleware
@@ -13,7 +13,7 @@ const validateNotice = [
 ];
 
 // Get All Notices
-router.get('/list', authMiddleware, async (req, res) => {
+router.get('/list', authenticateToken, async (req, res) => {
     try {
         const { schoolId } = req.user;
         const { 
@@ -115,7 +115,7 @@ router.get('/list', authMiddleware, async (req, res) => {
 });
 
 // Get Notice by ID
-router.get('/:id', authMiddleware, async (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
     try {
         const { schoolId } = req.user;
         const { id } = req.params;
@@ -151,7 +151,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
 // Create New Notice
 router.post('/create', 
-    authMiddleware,
+    authenticateToken,
     validateNotice,
     async (req, res) => {
         const errors = validationResult(req);
@@ -164,7 +164,7 @@ router.post('/create',
         }
 
         try {
-            const { schoolId, userId } = req.user;
+            const { schoolId, id: userId } = req.user;
             const { 
                 title, 
                 message, 
@@ -216,7 +216,7 @@ router.post('/create',
 
 // Update Notice
 router.put('/update/:id', 
-    authMiddleware,
+    authenticateToken,
     validateNotice,
     async (req, res) => {
         const errors = validationResult(req);
@@ -229,7 +229,7 @@ router.put('/update/:id',
         }
 
         try {
-            const { schoolId, userId, role } = req.user;
+            const { schoolId, id: userId, role } = req.user;
             const { id } = req.params;
             const { 
                 title, 
@@ -293,9 +293,9 @@ router.put('/update/:id',
 );
 
 // Delete Notice
-router.delete('/delete/:id', authMiddleware, async (req, res) => {
+router.delete('/delete/:id', authenticateToken, async (req, res) => {
     try {
-        const { schoolId, userId, role } = req.user;
+        const { schoolId, id: userId, role } = req.user;
         const { id } = req.params;
 
         // Check if notice exists and user has permission to delete
@@ -340,7 +340,7 @@ router.delete('/delete/:id', authMiddleware, async (req, res) => {
 });
 
 // Get Notice Statistics
-router.get('/stats/summary', authMiddleware, async (req, res) => {
+router.get('/stats/summary', authenticateToken, async (req, res) => {
     try {
         const { schoolId } = req.user;
 
@@ -403,9 +403,9 @@ router.get('/stats/summary', authMiddleware, async (req, res) => {
 });
 
 // Mark Notice as Read
-router.post('/:id/mark-read', authMiddleware, async (req, res) => {
+router.post('/:id/mark-read', authenticateToken, async (req, res) => {
     try {
-        const { userId } = req.user;
+        const { id: userId } = req.user;
         const { id } = req.params;
 
         // Insert or update read status
@@ -430,9 +430,9 @@ router.post('/:id/mark-read', authMiddleware, async (req, res) => {
 });
 
 // Get Unread Notices Count
-router.get('/unread/count', authMiddleware, async (req, res) => {
+router.get('/unread/count', authenticateToken, async (req, res) => {
     try {
-        const { schoolId, userId } = req.user;
+        const { schoolId, id: userId } = req.user;
 
         const result = await db.get(
             `SELECT COUNT(*) as unread_count

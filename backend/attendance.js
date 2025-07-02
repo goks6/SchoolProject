@@ -1,16 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database');
-const authMiddleware = require('../middleware/auth');
+const db = require('../database-sqlite'); // PATH FIXED: Use your sqlite DB module
+const { authenticateToken } = require('../middleware/auth'); // Use correct middleware import
 const { query, validationResult } = require('express-validator');
 
 // Get Today's Attendance Summary
-router.get('/today', authMiddleware, async (req, res) => {
+router.get('/today', authenticateToken, async (req, res) => {
     try {
         const { schoolId } = req.user;
         const today = new Date().toISOString().split('T')[0];
 
-        const [result] = await db.execute(
+        const result = await db.get(
             `SELECT 
                 SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present,
                 SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) as absent,
@@ -25,10 +25,10 @@ router.get('/today', authMiddleware, async (req, res) => {
         res.json({
             success: true,
             data: {
-                present: parseInt(result[0].present) || 0,
-                absent: parseInt(result[0].absent) || 0,
-                late: parseInt(result[0].late) || 0,
-                total: parseInt(result[0].total) || 0,
+                present: parseInt(result?.present) || 0,
+                absent: parseInt(result?.absent) || 0,
+                late: parseInt(result?.late) || 0,
+                total: parseInt(result?.total) || 0,
                 date: today
             }
         });
@@ -50,7 +50,7 @@ router.get('/today', authMiddleware, async (req, res) => {
 
 // Get Attendance by Date
 router.get('/date/:date', 
-    authMiddleware,
+    authenticateToken,
     [
         query('date').isISO8601().toDate()
     ],
@@ -68,7 +68,7 @@ router.get('/date/:date',
             const { schoolId } = req.user;
             const { date } = req.params;
 
-            const [attendance] = await db.execute(
+            const attendance = await db.query(
                 `SELECT 
                     a.*,
                     s.name as student_name,
@@ -98,10 +98,10 @@ router.get('/date/:date',
 
 // Mark Attendance
 router.post('/mark',
-    authMiddleware,
+    authenticateToken,
     async (req, res) => {
         try {
-            const { schoolId, userId } = req.user;
+            const { schoolId, id: userId } = req.user;
             const { studentId, status, date, remarks } = req.body;
 
             // Validation
@@ -122,12 +122,12 @@ router.post('/mark',
             }
 
             // Check if student belongs to the school
-            const [student] = await db.execute(
+            const student = await db.get(
                 'SELECT id FROM students WHERE id = ? AND school_id = ?',
                 [studentId, schoolId]
             );
 
-            if (student.length === 0) {
+            if (!student) {
                 return res.status(404).json({
                     success: false,
                     message: 'विद्यार्थी सापडला नाही'
@@ -135,24 +135,24 @@ router.post('/mark',
             }
 
             // Check if attendance already marked
-            const [existing] = await db.execute(
+            const existing = await db.get(
                 'SELECT id FROM attendance WHERE student_id = ? AND DATE(date) = ?',
                 [studentId, date]
             );
 
-            if (existing.length > 0) {
+            if (existing) {
                 // Update existing attendance
-                await db.execute(
+                await db.run(
                     `UPDATE attendance 
-                     SET status = ?, remarks = ?, marked_by = ?, updated_at = CURRENT_TIMESTAMP
+                     SET status = ?, remarks = ?, marked_by = ?, updated_at = datetime('now')
                      WHERE student_id = ? AND DATE(date) = ?`,
                     [status, remarks || null, userId, studentId, date]
                 );
             } else {
                 // Insert new attendance
-                await db.execute(
+                await db.run(
                     `INSERT INTO attendance (student_id, date, status, remarks, marked_by, created_at, updated_at)
-                     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                     VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
                     [studentId, date, status, remarks || null, userId]
                 );
             }
@@ -173,14 +173,14 @@ router.post('/mark',
 
 // Get Class Attendance
 router.get('/class/:class/:section',
-    authMiddleware,
+    authenticateToken,
     async (req, res) => {
         try {
             const { schoolId } = req.user;
             const { class: className, section } = req.params;
             const date = req.query.date || new Date().toISOString().split('T')[0];
 
-            const [attendance] = await db.execute(
+            const students = await db.query(
                 `SELECT 
                     s.id as student_id,
                     s.name,
@@ -202,7 +202,7 @@ router.get('/class/:class/:section',
                     class: className,
                     section,
                     date,
-                    students: attendance
+                    students
                 }
             });
 
@@ -217,13 +217,13 @@ router.get('/class/:class/:section',
 
 // Get Monthly Report
 router.get('/report/monthly/:year/:month',
-    authMiddleware,
+    authenticateToken,
     async (req, res) => {
         try {
             const { schoolId } = req.user;
             const { year, month } = req.params;
 
-            const [report] = await db.execute(
+            const report = await db.query(
                 `SELECT 
                     s.class,
                     s.section,
@@ -234,11 +234,11 @@ router.get('/report/monthly/:year/:month',
                     SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) as total_late
                  FROM students s
                  LEFT JOIN attendance a ON s.id = a.student_id 
-                    AND YEAR(a.date) = ? AND MONTH(a.date) = ?
+                    AND strftime('%Y', a.date) = ? AND strftime('%m', a.date) = ?
                  WHERE s.school_id = ?
                  GROUP BY s.class, s.section
                  ORDER BY s.class, s.section`,
-                [year, month, schoolId]
+                [year, month.padStart(2, '0'), schoolId]
             );
 
             res.json({

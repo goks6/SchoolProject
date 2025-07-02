@@ -17,7 +17,6 @@
                 <p id="userName">शिक्षक नाव</p>
                 <small id="teacherClassInfo">इयत्ता-तुकडी</small>
             </div>
-            
             <ul class="sidebar-menu">
                 <li><a href="#" onclick="showSection('overview')" class="active">
                     <i class="bi bi-speedometer2"></i> डॅशबोर्ड

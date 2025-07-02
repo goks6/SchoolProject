@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/database-sqlite');
-const authMiddleware = require('../middleware/auth');
+const db = require('../database-sqlite'); // PATH FIXED
+const { authenticateToken } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
 
 // Validation middleware
@@ -16,14 +16,14 @@ const validateStudent = [
 ];
 
 // Get Students List
-router.get('/list', authMiddleware, async (req, res) => {
+router.get('/list', authenticateToken, async (req, res) => {
     try {
-        const { schoolId, role, userId } = req.user;
+        const { schoolId, role, id: userId } = req.user;
         const { class: className, section, search, page = 1, limit = 50 } = req.query;
 
         let query = `SELECT 
             s.id, s.roll_number, s.name, s.mother_name, s.father_name,
-            s.birth_date, s.address, s.parent_mobile, s.aadhar_number, 
+            s.date_of_birth, s.address, s.parent_mobile, s.aadhar_number, 
             s.student_id, s.class, s.section, s.is_active, s.created_at
          FROM students s
          WHERE s.school_id = ? AND s.is_active = 1`;
@@ -83,7 +83,7 @@ router.get('/list', authMiddleware, async (req, res) => {
 });
 
 // Get Student by ID
-router.get('/:id', authMiddleware, async (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
     try {
         const { schoolId } = req.user;
         const { id } = req.params;
@@ -116,7 +116,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 
 // Add Student
 router.post('/add', 
-    authMiddleware,
+    authenticateToken,
     validateStudent,
     async (req, res) => {
         const errors = validationResult(req);
@@ -133,7 +133,7 @@ router.post('/add',
                 rollNumber, name, motherName, fatherName, birthDate, 
                 address, parentMobile, aadharNumber, studentId
             } = req.body;
-            const { schoolId, userId, role } = req.user;
+            const { schoolId, id: userId, role } = req.user;
 
             // Get teacher's class and section if teacher is adding
             let studentClass, studentSection;
@@ -217,7 +217,7 @@ router.post('/add',
 );
 
 // Update Student
-router.put('/update/:id', authMiddleware, async (req, res) => {
+router.put('/update/:id', authenticateToken, async (req, res) => {
     try {
         const { 
             name, motherName, fatherName, birthDate,
@@ -282,7 +282,7 @@ router.put('/update/:id', authMiddleware, async (req, res) => {
 });
 
 // Delete Student (Soft Delete)
-router.delete('/delete/:id', authMiddleware, async (req, res) => {
+router.delete('/delete/:id', authenticateToken, async (req, res) => {
     try {
         const { schoolId, role } = req.user;
         const studentId = req.params.id;
@@ -331,10 +331,10 @@ router.delete('/delete/:id', authMiddleware, async (req, res) => {
 });
 
 // Bulk Import Students
-router.post('/bulk-import', authMiddleware, async (req, res) => {
+router.post('/bulk-import', authenticateToken, async (req, res) => {
     try {
         const { students } = req.body;
-        const { schoolId, userId, role } = req.user;
+        const { schoolId, id: userId, role } = req.user;
 
         if (!Array.isArray(students) || students.length === 0) {
             return res.status(400).json({
