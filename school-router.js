@@ -80,6 +80,87 @@ router.put('/update',
 
         try {
             const { schoolId } = req.user;
+            const { address, pinCode, phone, principalEmail } = req.body;
+
+            const updates = [];
+            const values = [];
+
+            if (address) {
+                updates.push('address = ?');
+                values.push(address);
+            }
+            if (pinCode) {
+                updates.push('pin_code = ?');
+                values.push(pinCode);
+            }
+            if (phone) {
+                updates.push('phone = ?');
+                values.push(phone);
+            }
+            if (principalEmail) {
+                updates.push('principal_email = ?');
+                values.push(principalEmail);
+            }
+
+            if (updates.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'अद्यतनित करण्यासाठी काहीही नाही'
+                });
+            }
+
+            updates.push('updated_at = CURRENT_TIMESTAMP');
+            values.push(schoolId);
+
+            await db.execute(
+                `UPDATE schools SET ${updates.join(', ')} WHERE id = ?`,
+                values
+            );
+
+            res.json({
+                success: true,
+                message: 'शाळेची माहिती यशस्वीपणे अद्यतनित केली'
+            });
+
+        } catch (error) {
+            console.error('Error updating school:', error);
+            res.status(500).json({
+                success: false,
+                message: 'शाळेची माहिती अद्यतनित करताना त्रुटी'
+            });
+        }
+    }
+);
+
+// Add Teacher
+router.post('/add-teacher',
+    authMiddleware,
+    [
+        body('name').notEmpty().trim(),
+        body('mobile').matches(/^\d{10}$/),
+        body('email').optional().isEmail(),
+        body('class').notEmpty(),
+        body('section').notEmpty()
+    ],
+    async (req, res) => {
+        // Check if user is principal
+        if (req.user.role !== 'principal') {
+            return res.status(403).json({
+                success: false,
+                message: 'केवळ मुख्याध्यापक शिक्षक जोडू शकतात'
+            });
+        }
+
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                errors: errors.array()
+            });
+        }
+
+        try {
+            const { schoolId } = req.user;
             const { name, mobile, email, class: className, section } = req.body;
 
             // Check if mobile already exists
@@ -182,6 +263,35 @@ router.put('/teacher/:teacherId/status',
         }
     }
 );
+
+// Get Teachers List
+router.get('/teachers', authMiddleware, async (req, res) => {
+    try {
+        const { schoolId } = req.user;
+
+        const [teachers] = await db.execute(
+            `SELECT 
+                id, name, mobile, email, class, section,
+                is_active, last_login, created_at
+             FROM users 
+             WHERE school_id = ? AND role = 'teacher'
+             ORDER BY name`,
+            [schoolId]
+        );
+
+        res.json({
+            success: true,
+            data: teachers
+        });
+
+    } catch (error) {
+        console.error('Error getting teachers:', error);
+        res.status(500).json({
+            success: false,
+            message: 'शिक्षकांची यादी मिळवताना त्रुटी'
+        });
+    }
+});
 
 // Get Classes and Sections
 router.get('/classes', authMiddleware, async (req, res) => {
@@ -354,113 +464,3 @@ router.get('/export/attendance/:startDate/:endDate',
 );
 
 module.exports = router;
-                errors: errors.array()
-            });
-        }
-
-        try {
-            const { schoolId } = req.user;
-            const { address, pinCode, phone, principalEmail } = req.body;
-
-            const updates = [];
-            const values = [];
-
-            if (address) {
-                updates.push('address = ?');
-                values.push(address);
-            }
-            if (pinCode) {
-                updates.push('pin_code = ?');
-                values.push(pinCode);
-            }
-            if (phone) {
-                updates.push('phone = ?');
-                values.push(phone);
-            }
-            if (principalEmail) {
-                updates.push('principal_email = ?');
-                values.push(principalEmail);
-            }
-
-            if (updates.length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'अद्यतनित करण्यासाठी काहीही नाही'
-                });
-            }
-
-            updates.push('updated_at = CURRENT_TIMESTAMP');
-            values.push(schoolId);
-
-            await db.execute(
-                `UPDATE schools SET ${updates.join(', ')} WHERE id = ?`,
-                values
-            );
-
-            res.json({
-                success: true,
-                message: 'शाळेची माहिती यशस्वीपणे अद्यतनित केली'
-            });
-
-        } catch (error) {
-            console.error('Error updating school:', error);
-            res.status(500).json({
-                success: false,
-                message: 'शाळेची माहिती अद्यतनित करताना त्रुटी'
-            });
-        }
-    }
-);
-
-// Get Teachers List
-router.get('/teachers', authMiddleware, async (req, res) => {
-    try {
-        const { schoolId } = req.user;
-
-        const [teachers] = await db.execute(
-            `SELECT 
-                id, name, mobile, email, class, section,
-                is_active, last_login, created_at
-             FROM users 
-             WHERE school_id = ? AND role = 'teacher'
-             ORDER BY name`,
-            [schoolId]
-        );
-
-        res.json({
-            success: true,
-            data: teachers
-        });
-
-    } catch (error) {
-        console.error('Error getting teachers:', error);
-        res.status(500).json({
-            success: false,
-            message: 'शिक्षकांची यादी मिळवताना त्रुटी'
-        });
-    }
-});
-
-// Add Teacher
-router.post('/add-teacher',
-    authMiddleware,
-    [
-        body('name').notEmpty().trim(),
-        body('mobile').matches(/^\d{10}$/),
-        body('email').optional().isEmail(),
-        body('class').notEmpty(),
-        body('section').notEmpty()
-    ],
-    async (req, res) => {
-        // Check if user is principal
-        if (req.user.role !== 'principal') {
-            return res.status(403).json({
-                success: false,
-                message: 'केवळ मुख्याध्यापक शिक्षक जोडू शकतात'
-            });
-        }
-
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({
-                success: false,
